@@ -1595,8 +1595,7 @@ function attachDragHandlers() {
 function fiHtml(id, fav, depth) {
   const f=S.files[id];
   const active=S.activeId===id;
-  const sameNm=Object.values(S.files).filter(x=>x.name===f.name).length;
-  const badge=sameNm>1?`<span class="fi-badge">#${id}</span>`:'';
+  const badge='';
   // depth: 0 = root (no extra indent), 1+ = inside folder(s)
   const d = depth || 0;
   const pl = d > 0 ? 6 + d * 9 + 14 : 8; // folder arrow(10)+icon(14) offset for files inside folders
@@ -1604,7 +1603,7 @@ function fiHtml(id, fav, depth) {
     style="padding-left:${pl}px"
     onclick="openTab('${id}')" oncontextmenu="showCtx(event,'${id}')">
     <div class="fi-ico">${iconInner(f)}</div>
-    <span class="fi-nm" title="${escA(f.path)}">${escH(f.name)}</span>
+    <span class="fi-nm" title="${escA(f.path)}">${escH(dispName(id))}</span>
     ${badge}
     <div class="fi-acts">
       <div class="fia star${fav?' on':''}" onclick="event.stopPropagation();toggleFav('${id}')" title="${fav?'Unpin':'Pin'}"><i class="fa fa-star"></i></div>
@@ -1649,11 +1648,10 @@ function openNewFileInFolder(folderPath) {
 function renderTabBar() {
   document.getElementById('tabbar').innerHTML=S.openTabs.map(id=>{
     const f=S.files[id]; if(!f) return '';
-    const sameNm=Object.values(S.files).filter(x=>x.name===f.name).length;
-    const dup=sameNm>1?`<span class="t-dup">#${id}</span>`:'';
+    const dup='';
     return `<div class="tab${S.activeId===id?' active':''}${S.modified.has(id)?' mod':''}" onclick="activate('${id}')">
       <span class="t-ico">${iconInner(f,true)}</span>
-      <span class="t-nm">${escH(f.name)}</span>${dup}
+      <span class="t-nm" title="${escA(f.path)}">${escH(dispName(id))}</span>${dup}
       <span class="t-x" onclick="event.stopPropagation();closeTab('${id}')"><i class="fa fa-xmark"></i></span>
     </div>`;
   }).join('');
@@ -1885,7 +1883,7 @@ function updatePos() {
 
 function updateFname(extra) {
   const id=S.activeId;
-  const name=id&&S.files[id]?S.files[id].name:'no file open';
+  const name=id&&S.files[id]?dispName(id):'no file open';
   document.getElementById('fname-display').textContent=extra?`${name}  ${extra}`:name;
 }
 
@@ -1977,12 +1975,18 @@ function getPreviewId() {
   if (S.activeId && S.files[S.activeId] && (isH(S.files[S.activeId].name)||isMd(S.files[S.activeId].name))) id=S.activeId;
   else if (S.lastHtmlId && S.files[S.lastHtmlId]) id=S.lastHtmlId;
   else id = Object.keys(S.files).find(i=>isH(S.files[i].name))||null;
-  if (id && S.files[id]) {
-    const nm=S.files[id].name;
-    const copies=Object.keys(S.files).filter(i=>S.files[i].name===nm&&isH(S.files[i].name));
-    if (copies.length>1) { copies.sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1))); id=copies[0]; }
-  }
   return id;
+}
+
+// Display-only label: when several files share a name, insert the file id
+// before the extension (index.html -> index#f2.html). S.files[id].name / .path
+// are never changed, so ZIP/single-file exports always use the clean name.
+function dispName(id) {
+  const f = S.files[id]; if (!f) return '';
+  const dup = Object.values(S.files).filter(x => x.name === f.name).length > 1;
+  if (!dup) return f.name;
+  const i = f.name.lastIndexOf('.');
+  return i > 0 ? f.name.slice(0, i) + '#' + id + f.name.slice(i) : f.name + '#' + id;
 }
 
 function togglePreview(){S.previewOn?closePreview():openPreview();}
@@ -2257,7 +2261,7 @@ async function updatePreview() {
   if (!S.previewOn) return;
   const id = getPreviewId(); if (!id || !S.files[id]) return;
   const f = S.files[id];
-  document.getElementById('prev-fname').textContent = f.name;
+  document.getElementById('prev-fname').textContent = dispName(id);
   const html = isMd(f.name) ? buildMarkdownPreview(f.content) : await buildSelfContained(f.content, f.path);
   // Bail if the panel was closed (or the file changed) while we were building.
   if (!S.previewOn) return;
@@ -3430,7 +3434,7 @@ function qoRender(list){
   if (!list.length) { el.innerHTML = '<div class="qo-empty">No matching files</div>'; return; }
   el.innerHTML = list.map((f,i)=>`<div class="qo-item${i===0?' sel':''}" onclick="qoOpen(${i})">
     <span class="fi-ico" style="width:16px;height:16px;flex-shrink:0">${S.files[f.id]?iconInner(S.files[f.id]):'<i class="fa fa-file"></i>'}</span>
-    <span class="qo-nm">${escH(f.name)}</span><span class="qo-path">${escH(f.path)}</span>
+    <span class="qo-nm">${escH(S.files[f.id]?dispName(f.id):f.name)}</span><span class="qo-path">${escH(f.path)}</span>
   </div>`).join('');
 }
 
